@@ -16,6 +16,9 @@ kafka_config = {
 
 ATHLETE_TOPIC_NAME = f"athletes_{SUFFIX}"
 OUTPUT_TOPIC_NAME = f"output_{SUFFIX}"
-GOLD = "Gold"
-SILVER = "Silver"
-BRONZE = "Bronze"
+
+
+LANDING_PATH = "data/landing"
+BRONZE_PATH = "data/bronze"
+SILVER_PATH = "data/silver"
+GOLD_PATH = "data/gold"
