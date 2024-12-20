@@ -1,3 +1,5 @@
 ___pycache__/
 docker/
 venv/
+jars/.DS_Store/
+.DS_Store/
