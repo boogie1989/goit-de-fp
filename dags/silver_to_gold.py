@@ -2,13 +2,12 @@ import os
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import avg, current_timestamp, date_format
 from config import SILVER_PATH, GOLD_PATH
-# --------------------------------------------
-# Initialize Spark Session
-# --------------------------------------------
-spark = SparkSession.builder.appName("SilverToGold").getOrCreate()
+from spark import create_spark_session
 
 # Ensure directories exist
 os.makedirs(GOLD_PATH, exist_ok=True)
+
+spark = create_spark_session('SilverToGold')
 
 # --------------------------------------------
 # Read Silver Tables
@@ -51,6 +50,12 @@ avg_df = df_joined.groupBy(
 )
 
 # --------------------------------------------
+# Show the Final DataFrame
+# --------------------------------------------
+print("Final Aggregated DataFrame:")
+avg_df.show(truncate=False)
+
+# --------------------------------------------
 # Write Data to Gold Layer
 # --------------------------------------------
 gold_output_path = os.path.join(GOLD_PATH, "avg_stats")
@@ -59,3 +64,4 @@ print(f"Writing aggregated data to {gold_output_path}")
 avg_df.write.mode("overwrite").parquet(gold_output_path)
 
 print("Silver to Gold process completed.")
+

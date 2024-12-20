@@ -4,11 +4,9 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import udf, col
 from pyspark.sql.types import StringType
 from config import BRONZE_PATH, SILVER_PATH
+from spark import create_spark_session
 
-# --------------------------------------------
-# Initialize Spark Session
-# --------------------------------------------
-spark = SparkSession.builder.appName("BronzeToSilver").getOrCreate()
+spark = create_spark_session('BronzeToSilver')
 
 # Ensure directories exist
 os.makedirs(SILVER_PATH, exist_ok=True)
@@ -41,6 +39,7 @@ def process_bronze_table(table_name):
 
     # Deduplicate rows
     df_dedup = df.dropDuplicates()
+    df_dedup.show(truncate=False)
 
     # Write the cleaned and deduplicated data to the silver layer
     print(f"Writing cleaned data to {silver_table_path}")

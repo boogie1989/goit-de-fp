@@ -1,0 +1,216 @@
+x-airflow-common: &airflow-common
+    build: .
+    environment: &airflow-common-env
+        AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+        AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: mysql+pymysql://neo_data_admin:Proyahaxuqithab9oplp@mysql/SerhiiB
+        AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+        AIRFLOW__CORE__FERNET_KEY: "Gk3HXf-0UnqMUbGofpp68KEk_p2yDiOHYWOzNz-veUk="
+        AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+        AIRFLOW__CORE__LOAD_EXAMPLES: "true"
+        AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
+        JAVA_HOME: /usr/lib/jvm/temurin-17-jre-arm64
+        HADOOP_CONF_DIR: /etc/hadoop/conf
+        YARN_CONF_DIR: /etc/hadoop/conf
+        AIRFLOW__WEBSERVER__SECRET_KEY: "your_secret_key_here"
+
+    volumes:
+        - ../dags:/opt/airflow/dags
+        - ./logs:/opt/airflow/logs
+        - ./plugins:/opt/airflow/plugins
+        - ./conf/hadoop:/opt/hadoop/etc/hadoop
+
+    user: "${AIRFLOW_UID:-50000}:0"
+    depends_on: &airflow-common-depends-on
+        redis:
+            condition: service_healthy
+        mysql:
+            condition: service_healthy
+        spark-master:
+            condition: service_started
+
+services:
+    mysql:
+        image: mysql:8.0
+        container_name: mysql
+        environment:
+            MYSQL_ROOT_PASSWORD: root_password
+            MYSQL_DATABASE: SerhiiB
+            MYSQL_USER: neo_data_admin
+            MYSQL_PASSWORD: Proyahaxuqithab9oplp
+        ports:
+            - "3306:3306"
+        volumes:
+            - mysql_data:/var/lib/mysql
+        healthcheck:
+            test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+            interval: 10s
+            retries: 10
+            start_period: 30s
+        restart: always
+        networks:
+            - default_net
+
+    redis:
+        image: arm64v8/redis:7.2
+        expose:
+            - "6379"
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 10s
+            retries: 5
+            start_period: 10s
+        restart: always
+        networks:
+            - default_net
+
+    airflow-webserver:
+        <<: *airflow-common
+        environment: *airflow-common-env
+        command: webserver
+        ports:
+            - "8080:8080"
+        healthcheck:
+            test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+            interval: 30s
+            retries: 5
+            start_period: 30s
+        restart: always
+        depends_on:
+            <<: *airflow-common-depends-on
+            airflow-init:
+                condition: service_completed_successfully
+        volumes:
+            - ../dags:/opt/airflow/dags
+            - ./sandbox/spark/app:/usr/local/spark/app
+            - ./sandbox/spark/resources:/usr/local/spark/resources
+        networks:
+            - default_net
+
+    airflow-scheduler:
+        <<: *airflow-common
+        environment: *airflow-common-env
+        command: scheduler
+        restart: always
+        depends_on:
+            <<: *airflow-common-depends-on
+            airflow-init:
+                condition: service_completed_successfully
+        networks:
+            - default_net
+
+    airflow-worker:
+        <<: *airflow-common
+        environment: *airflow-common-env
+        command: celery worker
+        restart: always
+        depends_on:
+            <<: *airflow-common-depends-on
+            airflow-init:
+                condition: service_completed_successfully
+        networks:
+            - default_net
+
+    airflow-init:
+        <<: *airflow-common
+        environment: *airflow-common-env
+        entrypoint: /bin/bash
+        command: >
+            -c "
+            airflow db init &&
+            airflow db migrate &&
+            airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com
+            "
+        user: "0:0"
+        restart: "no"
+        depends_on:
+            <<: *airflow-common-depends-on
+        networks:
+            - default_net
+
+    zookeeper:
+        image: bitnami/zookeeper:3.9.1
+        tmpfs: "/zktmp"
+        environment:
+            ALLOW_ANONYMOUS_LOGIN: "yes"
+        ports:
+            - "2181:2181"
+        networks:
+            - default_net
+
+    kafka:
+        image: bitnami/kafka:3.7.0
+        depends_on:
+            - zookeeper
+        environment:
+            KAFKA_BROKER_ID: 1
+            KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
+            KAFKA_CFG_LISTENERS: INTERNAL://:9092,EXTERNAL://0.0.0.0:29092
+            KAFKA_CFG_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+            KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+            KAFKA_CFG_INTER_BROKER_LISTENER_NAME: INTERNAL
+            KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+            ALLOW_PLAINTEXT_LISTENER: "yes"
+        ports:
+            - "9092:9092"
+            - "29092:29092"
+        volumes:
+            - kafka_data:/bitnami/kafka
+        networks:
+            - default_net
+
+    kafka-ui:
+        image: provectuslabs/kafka-ui:latest
+        depends_on:
+            - kafka
+        ports:
+            - "8081:8080"
+        environment:
+            KAFKA_CLUSTERS_0_NAME: local
+            KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+            KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+        networks:
+            - default_net
+
+    spark-master:
+        image: bitnami/spark:3.2.1
+        hostname: spark
+        networks:
+            - default_net
+        environment:
+            - SPARK_MODE=master
+            - SPARK_RPC_AUTHENTICATION_ENABLED=no
+            - SPARK_RPC_ENCRYPTION_ENABLED=no
+            - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+            - SPARK_SSL_ENABLED=no
+        volumes:
+            - ./sandbox/spark/app:/usr/local/spark/app
+            - ./sandbox/spark/resources:/usr/local/spark/resources
+        ports:
+            - "8082:8080"
+            - "7077:7077"
+
+    spark-worker:
+        image: bitnami/spark:3.2.1
+        networks:
+            - default_net
+        environment:
+            - SPARK_MODE=worker
+            - SPARK_MASTER_URL=spark://spark:7077
+            - SPARK_WORKER_MEMORY=1G
+            - SPARK_WORKER_CORES=1
+            - SPARK_RPC_AUTHENTICATION_ENABLED=no
+            - SPARK_RPC_ENCRYPTION_ENABLED=no
+            - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+            - SPARK_SSL_ENABLED=no
+        volumes:
+            - ./sandbox/spark/app:/usr/local/spark/app
+            - ./sandbox/spark/resources:/usr/local/spark/resources
+
+networks:
+    default_net:
+        driver: bridge
+
+volumes:
+    mysql_data:
+    kafka_data:
+        driver: local

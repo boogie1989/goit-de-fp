@@ -2,11 +2,9 @@ import os
 import requests
 from pyspark.sql import SparkSession
 from config import LANDING_PATH, BRONZE_PATH
+from spark import create_spark_session
 
-# --------------------------------------------
-# Initialize Spark Session
-# --------------------------------------------
-spark = SparkSession.builder.appName("LandingToBronze").getOrCreate()
+spark = create_spark_session('LandingToBronze')
 
 # --------------------------------------------
 # FTP URLs and Destination Paths
@@ -51,6 +49,9 @@ def csv_to_parquet(table_name):
     # Read CSV file using Spark
     df = spark.read.csv(csv_file_path, header=True, inferSchema=True)
     print(f"Converting {csv_file_path} to {parquet_file_path}")
+
+    # Show DataFrame
+    df.show(truncate=False)
     
     # Save as Parquet
     df.write.mode("overwrite").parquet(parquet_file_path)

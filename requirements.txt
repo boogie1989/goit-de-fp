@@ -2,3 +2,7 @@ pyspark
 kafka-python
 mysql-connector-python
 requests
+apache-airflow
+apache-airflow-providers-mysql
+apache-airflow-providers-common-sql
+apache-airflow-providers-apache-spark

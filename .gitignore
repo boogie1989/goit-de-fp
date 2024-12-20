@@ -1,6 +1,17 @@
-___pycache__/
-docker/
+# Ignore compiled Python files and cache
+__pycache__/
+**/__pycache__/
+
+# Ignore virtual environment
 venv/
-jars/.DS_Store/
-.DS_Store
-data/
+
+# Ignore Docker-related files and directories
+docker/*
+!docker/Dockerfile
+!docker/docker-compose.yaml
+
+# Ignore .DS_Store files globally
+.DS_Store/*
+
+# Ignore specific JAR-related .DS_Store files
+jars/.DS_Store
