@@ -66,7 +66,11 @@ services:
     airflow-webserver:
         <<: *airflow-common
         environment: *airflow-common-env
-        command: webserver
+        command: >
+            bash -c "airflow db upgrade &&
+                    airflow connections delete spark_local || true &&
+                    airflow connections add 'spark_local' --conn-type 'spark' --conn-host 'spark' --conn-port '7077' &&
+                    airflow webserver"
         ports:
             - "8080:8080"
         healthcheck:

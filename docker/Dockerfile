@@ -74,3 +74,4 @@ USER airflow
 
 # Install Airflow and Spark dependencies
 RUN pip install apache-airflow-providers-mysql apache-airflow-providers-apache-spark pyspark pymysql
+
